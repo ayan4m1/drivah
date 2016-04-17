@@ -21,9 +21,8 @@ private:
   uint8_t bufferIdx;
   uint8_t packetSize;
 public:
-  Quaternion *rotation;
-  VectorInt16* eulerRotation();
-  VectorInt16 *acceleration;
+  Quaternion rotation;
+  VectorInt16 acceleration;
 
   Gyroscope(uint8_t, VectorInt16*, VectorInt16*);
   ~Gyroscope();

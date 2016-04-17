@@ -22,8 +22,6 @@ Gyroscope::Gyroscope(uint8_t interruptPin,
 
   // init controller and buffer index
   gyro = new MPU6050();
-  // do some data smoothing at the cost of bus speed
-  gyro->setDLPFMode(2);
 
   // init DMP and set offsets
   gyro->dmpInitialize();
@@ -48,6 +46,8 @@ Gyroscope::Gyroscope(uint8_t interruptPin,
   // allocate our packet buffer
   packetSize = gyro->dmpGetFIFOPacketSize();
   buffer = (uint8_t*)malloc(packetSize * GYRO_BUFFER_SAMPLES);
+  rotation = Quaternion();
+  acceleration = VectorInt16();
 }
 
 volatile bool Gyroscope::interruptToggle = false;
@@ -59,17 +59,12 @@ Gyroscope::~Gyroscope() {
   detachInterrupt(digitalPinToInterrupt(interruptPin));
   interruptToggle = false;
   free(buffer);
-
   free(gyro);
-  free(rotation);
-  free(acceleration);
 }
 
-
 bool Gyroscope::update() {
-  // wait for the next packet interrupt
-  while (!interruptToggle || !gyro->dmpPacketAvailable()) {
-    delayMicroseconds(10);
+  if (!interruptToggle) {
+    return false;
   }
   int status = gyro->getIntStatus();
 
@@ -77,16 +72,17 @@ bool Gyroscope::update() {
   if (status & 0x10) {
     gyro->resetFIFO();
     Serial.println(F("MPU FIFO overflow!"));
-    return false;
   } else if (status & 0x02) {
+    // decode our rotation and accel into structs
+    while (!gyro->dmpPacketAvailable()) {
+      delayMicroseconds(10);
+    }
+
     gyro->getFIFOBytes(buffer, packetSize);
-    gyro->dmpGetQuaternion(rotation, buffer);
-    gyro->dmpGetAccel(acceleration, buffer);
-  } else {
-    Serial.println(F("MPU status unknown!"));
+    gyro->dmpGetQuaternion(&rotation, buffer);
+    gyro->dmpGetAccel(&acceleration, buffer);
   }
 
-  // allow another interruption
   interruptToggle = false;
-  return true;
+  return (status & 0x02);
 }

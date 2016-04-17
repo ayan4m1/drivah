@@ -17,18 +17,18 @@ void setup() {
 
 void loop() {
   if (gyro->update()) {
-    Serial.print(gyro->acceleration->x);
+    Serial.print(gyro->acceleration.x);
     Serial.print('\t');
-    Serial.print(gyro->acceleration->y);
+    Serial.print(gyro->acceleration.y);
     Serial.print('\t');
-    Serial.print(gyro->acceleration->z);
+    Serial.print(gyro->acceleration.z);
     Serial.print(" A||G ");
-    Serial.print(gyro->rotation->w);
+    Serial.print(gyro->rotation.w);
     Serial.print('\t');
-    Serial.print(gyro->rotation->x);
+    Serial.print(gyro->rotation.x);
     Serial.print('\t');
-    Serial.print(gyro->rotation->y);
+    Serial.print(gyro->rotation.y);
     Serial.print('\t');
-    Serial.println(gyro->rotation->z);
+    Serial.println(gyro->rotation.z);
   }
 }
