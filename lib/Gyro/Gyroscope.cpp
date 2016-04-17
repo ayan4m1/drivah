@@ -1,0 +1,92 @@
+#include "Gyroscope.h"
+
+bool Gyroscope::wired = false;
+void Gyroscope::initWire() {
+  if (wired) {
+    return;
+  }
+
+  #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
+    Wire.begin();
+    Wire.setClock(GYRO_SAMPLES_KHZ * KHZ_TO_HZ);
+  #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
+    Fastwire::setup(GYRO_SAMPLES_KHZ, true);
+  #endif
+  wired = true;
+}
+
+Gyroscope::Gyroscope(uint8_t interruptPin,
+                     VectorInt16 *offsetG, VectorInt16 *offsetA) {
+  // call the static Wire library setup
+  Gyroscope::initWire();
+
+  // init controller and buffer index
+  gyro = new MPU6050();
+  // do some data smoothing at the cost of bus speed
+  gyro->setDLPFMode(2);
+
+  // init DMP and set offsets
+  gyro->dmpInitialize();
+  gyro->setXGyroOffset(offsetG->x);
+  gyro->setYGyroOffset(offsetG->y);
+  gyro->setZGyroOffset(offsetG->z);
+  gyro->setXAccelOffset(offsetA->x);
+  gyro->setYAccelOffset(offsetA->y);
+  gyro->setZAccelOffset(offsetA->z);
+  gyro->setDMPEnabled(true);
+
+  // enable and attach interrupt
+  this->interruptPin = interruptPin;
+  pinMode(interruptPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interruptPin), interrupt, RISING);
+
+  int status = gyro->getIntStatus();
+  if (status > 0) {
+    Serial.println(F("MPU6050 Init Error"));
+  }
+
+  // allocate our packet buffer
+  packetSize = gyro->dmpGetFIFOPacketSize();
+  buffer = (uint8_t*)malloc(packetSize * GYRO_BUFFER_SAMPLES);
+}
+
+volatile bool Gyroscope::interruptToggle = false;
+void Gyroscope::interrupt() {
+  interruptToggle = true;
+}
+
+Gyroscope::~Gyroscope() {
+  detachInterrupt(digitalPinToInterrupt(interruptPin));
+  interruptToggle = false;
+  free(buffer);
+
+  free(gyro);
+  free(rotation);
+  free(acceleration);
+}
+
+
+bool Gyroscope::update() {
+  // wait for the next packet interrupt
+  while (!interruptToggle || !gyro->dmpPacketAvailable()) {
+    delayMicroseconds(10);
+  }
+  int status = gyro->getIntStatus();
+
+  // first case indicates overflow
+  if (status & 0x10) {
+    gyro->resetFIFO();
+    Serial.println(F("MPU FIFO overflow!"));
+    return false;
+  } else if (status & 0x02) {
+    gyro->getFIFOBytes(buffer, packetSize);
+    gyro->dmpGetQuaternion(rotation, buffer);
+    gyro->dmpGetAccel(acceleration, buffer);
+  } else {
+    Serial.println(F("MPU status unknown!"));
+  }
+
+  // allow another interruption
+  interruptToggle = false;
+  return true;
+}
