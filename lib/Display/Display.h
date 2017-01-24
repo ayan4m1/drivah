@@ -17,8 +17,6 @@ private:
   UTFT *gfx;
   URTouch *touch;
   uint32_t lastTouch;
-  float sampleBuffer[24] = {};
-  uint8_t sampleIndex = 0;
 };
 
 #define DISP_RST 41
@@ -26,13 +24,13 @@ private:
 #define DISP_WR  39
 #define DISP_RS  38
 
-#define TOUCH_CLK  11
-#define TOUCH_CS   10
-#define TOUCH_DIN  9
-#define TOUCH_DOUT 8
-#define TOUCH_IRQ  7
+#define TOUCH_CLK  10
+#define TOUCH_CS   9
+#define TOUCH_DIN  8
+#define TOUCH_DOUT 7
+#define TOUCH_IRQ  6
 
-#define DISP_FRAME_RATE 8
+#define DISP_FRAME_RATE 20
 #define DISP_WIDTH 240
 #define DISP_HEIGHT 320
 

@@ -82,6 +82,30 @@ bool Gyroscope::update() {
     gyro->getFIFOBytes(buffer, packetSize);
     gyro->dmpGetQuaternion(&rotation, buffer);
     gyro->dmpGetAccel(&acceleration, buffer);
+    gyro->dmpGetGravity(&gravity, &rotation);
+    VectorInt16 linAccel = VectorInt16();
+    gyro->dmpGetLinearAccel(&linAccel, &acceleration, &gravity);
+    if (linAcc.x > linAccel.x && thresholdCounters[0] < GYRO_THRESHOLD_MAX) {
+      thresholdCounters[0]++;
+    } else if (linAcc.x > linAccel.x) {
+      thresholdCounters[0] = 0;
+      linAcc.x = 0;
+    }
+    if (linAcc.y > linAccel.y && thresholdCounters[1] < GYRO_THRESHOLD_MAX) {
+      thresholdCounters[1]++;
+    } else if (linAcc.y > linAccel.y) {
+      thresholdCounters[1] = 0;
+      linAcc.y = 0;
+    }
+    if (linAcc.z > linAccel.z && thresholdCounters[2] < GYRO_THRESHOLD_MAX) {
+      thresholdCounters[2]++;
+    } else if (linAcc.z > linAccel.z) {
+      thresholdCounters[2] = 0;
+      linAcc.z = 0;
+    }
+    linAcc.x = max(linAcc.x, linAccel.x);
+    linAcc.y = max(linAcc.y, linAccel.y);
+    linAcc.z = max(linAcc.z, linAccel.z);
   }
 
   interruptToggle = false;

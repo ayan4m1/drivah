@@ -2,8 +2,8 @@
 #include <Gyroscope.h>
 #include <Display.h>
 
-VectorInt16 *offsetG = new VectorInt16(70, -62, 45);
-VectorInt16 *offsetA = new VectorInt16(-2500, -3400, 1620);
+VectorInt16 *offsetG = new VectorInt16(70, -65, 40);
+VectorInt16 *offsetA = new VectorInt16(-2600, -3400, 1630);
 
 Display *lcd;
 Gyroscope *gyro;
@@ -26,6 +26,6 @@ void loop() {
   }
 
   lcd->state->rot = gyro->rotation;
-  lcd->state->accel = gyro->acceleration;
+  lcd->state->accel = gyro->linAcc;
   lcd->update(started);
 }
