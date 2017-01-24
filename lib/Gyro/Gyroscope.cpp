@@ -15,8 +15,7 @@ void Gyroscope::initWire() {
   wired = true;
 }
 
-Gyroscope::Gyroscope(uint8_t interruptPin,
-                     VectorInt16 *offsetG, VectorInt16 *offsetA) {
+Gyroscope::Gyroscope(VectorInt16 *offsetG, VectorInt16 *offsetA) {
   // call the static Wire library setup
   Gyroscope::initWire();
 
@@ -24,7 +23,13 @@ Gyroscope::Gyroscope(uint8_t interruptPin,
   gyro = new MPU6050();
 
   // init DMP and set offsets
-  gyro->dmpInitialize();
+  uint8_t status = gyro->dmpInitialize();
+#if DEBUG
+  if (status > 0) {
+    Serial.println(F("MPU Init Failed"));
+  }
+#endif
+
   gyro->setXGyroOffset(offsetG->x);
   gyro->setYGyroOffset(offsetG->y);
   gyro->setZGyroOffset(offsetG->z);
@@ -34,14 +39,8 @@ Gyroscope::Gyroscope(uint8_t interruptPin,
   gyro->setDMPEnabled(true);
 
   // enable and attach interrupt
-  this->interruptPin = interruptPin;
-  pinMode(interruptPin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(interruptPin), interrupt, RISING);
-
-  int status = gyro->getIntStatus();
-  if (status > 0) {
-    Serial.println(F("MPU6050 Init Error"));
-  }
+  pinMode(GYRO_INTERRUPT_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(GYRO_INTERRUPT_PIN), interrupt, RISING);
 
   // allocate our packet buffer
   packetSize = gyro->dmpGetFIFOPacketSize();
@@ -56,7 +55,7 @@ void Gyroscope::interrupt() {
 }
 
 Gyroscope::~Gyroscope() {
-  detachInterrupt(digitalPinToInterrupt(interruptPin));
+  detachInterrupt(digitalPinToInterrupt(GYRO_INTERRUPT_PIN));
   interruptToggle = false;
   free(buffer);
   free(gyro);
@@ -71,9 +70,11 @@ bool Gyroscope::update() {
   // first case indicates overflow
   if (status & 0x10) {
     gyro->resetFIFO();
+#if DEBUG
     Serial.println(F("MPU FIFO overflow!"));
+#endif
   } else if (status & 0x02) {
-    // decode our rotation and accel into structs
+    // the interrupt should mean that a packet is ready, but if not...
     while (!gyro->dmpPacketAvailable()) {
       delayMicroseconds(10);
     }

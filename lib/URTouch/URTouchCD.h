@@ -1,0 +1,3 @@
+#define CAL_X 0x020E47C2UL
+#define CAL_Y 0x01D10839UL
+#define CAL_S 0x8013F0EFUL

@@ -1,8 +1,9 @@
 #include <SPI.h>
 #include <Wire.h>
-#include <GyroWrapper.h>
+#include <MPU6050.h>
 
-#define GYRO_BUFFER_SAMPLES 32
+#define GYRO_INTERRUPT_PIN 2
+#define GYRO_BUFFER_SAMPLES 24
 #define GYRO_SAMPLES_KHZ 400
 #define KHZ_TO_HZ 1000L
 
@@ -24,7 +25,7 @@ public:
   Quaternion rotation;
   VectorInt16 acceleration;
 
-  Gyroscope(uint8_t, VectorInt16*, VectorInt16*);
+  Gyroscope(VectorInt16*, VectorInt16*);
   ~Gyroscope();
   bool update();
 };
