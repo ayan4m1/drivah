@@ -1,6 +1,6 @@
 #include "Display.h"
 
-extern uint8_t SmallFont[];
+extern uint8_t SevenSegNumFontPlusPlus[];
 
 Display::Display() {
   state = new DisplayState();
@@ -10,9 +10,9 @@ Display::Display() {
 
   gfx->InitLCD(LANDSCAPE);
   touch->InitTouch(LANDSCAPE);
-  touch->setPrecision(PREC_MEDIUM);
+  touch->setPrecision(PREC_LOW);
 
-  gfx->setFont(SmallFont);
+  gfx->setFont(SevenSegNumFontPlusPlus);
   gfx->setBackColor(VGA_BLACK);
   gfx->setColor(VGA_GREEN);
 
@@ -22,37 +22,30 @@ Display::Display() {
 
 void Display::update(uint32_t startMicros) {
   uint32_t currentMs = millis();
-  if (currentMs - lastTouch > BACKLIGHT_SLEEP_MS) {
-    analogWrite(4, 20);
+  if (currentMs - lastTouch > BACKLIGHT_OFF_MS) {
+    analogWrite(BACKLIGHT_PIN, BRIGHTNESS_OFF);
+  } else if (currentMs - lastTouch > BACKLIGHT_SLEEP_MS) {
+    analogWrite(BACKLIGHT_PIN, BRIGHTNESS_LOW);
   } else {
-    analogWrite(4, 200);
+    analogWrite(BACKLIGHT_PIN, BRIGHTNESS_HIGH);
   }
 
   if (touch->dataAvailable()) {
     touch->read();
     if (touch->getX() != -1 && touch->getY() != -1) {
       lastTouch = currentMs;
-      gfx->print(F("TOUCHING"), 0, 50);
-      gfx->printNumI(touch->getX(), 100, 50);
-      gfx->printNumI(touch->getY(), 150, 50);
     }
-  } else {
-    gfx->setColor(VGA_BLACK);
-    gfx->fillRect(0, 50, DISP_WIDTH, 68);
-    gfx->setColor(VGA_GREEN);
   }
 
-  gfx->print(F("X"), 0, 100);
-  gfx->printNumF(state->accel.x / 8192.0, 2, 20, 100);
-  gfx->print(F("Y"), 0, 150);
-  gfx->printNumF(state->accel.y / 8192.0, 2, 20, 150);
-  gfx->print(F("Z"), 0, 200);
-  gfx->printNumF(state->accel.z / 8192.0, 2, 20, 200);
+  //uint32_t sumOfSquares = sqrt(pow(state->accel.x, 2) + pow(state->accel.y, 2) + pow(state->accel.z, 2)) / 8192.0;
+  gfx->printNumF(state->accel.x / 8192.0, 2, 20, 50);
+  gfx->printNumF(state->accel.y / 8192.0, 2, 20, 120);
+  gfx->printNumF(state->accel.z / 8192.0, 2, 20, 190);
 
-  uint32_t frameTime = (micros() - startMicros);
+  /*uint32_t frameTime = (micros() - startMicros);
   if (frameTime < MAX_FRAME_TIME - 20) {
     delayMicroseconds(MAX_FRAME_TIME - frameTime);
-  }
+  }*/
 }
 
 Display::~Display() {

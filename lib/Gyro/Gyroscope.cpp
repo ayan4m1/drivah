@@ -44,7 +44,7 @@ Gyroscope::Gyroscope(VectorInt16 *offsetG, VectorInt16 *offsetA) {
 
   // allocate our packet buffer
   packetSize = gyro->dmpGetFIFOPacketSize();
-  buffer = (uint8_t*)malloc(packetSize * GYRO_BUFFER_SAMPLES);
+  buffer = (uint8_t*)malloc(packetSize);
   rotation = Quaternion();
   acceleration = VectorInt16();
 }
@@ -79,7 +79,10 @@ bool Gyroscope::update() {
       delayMicroseconds(10);
     }
 
-    gyro->getFIFOBytes(buffer, packetSize);
+    while (gyro->dmpPacketAvailable()) {
+      gyro->getFIFOBytes(buffer, packetSize);
+    }
+
     gyro->dmpGetQuaternion(&rotation, buffer);
     gyro->dmpGetAccel(&acceleration, buffer);
     gyro->dmpGetGravity(&gravity, &rotation);
