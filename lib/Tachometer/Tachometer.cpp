@@ -1,17 +1,43 @@
 #include "Tachometer.h"
 
+Tachometer::Tachometer() {
+  pixels = Adafruit_NeoPixel(RING_COUNT, RING_PIN, RING_OPTIONS);
+  this->init();
+}
+
 void Tachometer::init() {
-  pixels = Adafruit_NeoPixel(RING_COUNT, RING_PIN, NEO_GRB + NEO_KHZ800);
-  pixels.setBrightness(0x1A);
+  pixels.setBrightness(RING_BRIGHTNESS);
   pixels.begin();
+
+  this->setSafe();
+  this->clear();
+}
+
+void Tachometer::clear() {
+  uint8_t pixelCount = pixels.numPixels();
+  for (uint8_t i = 0; i < pixelCount; i++) {
+    pixels.setPixelColor(i, 0);
+  }
   pixels.show();
 }
 
-void Tachometer::update(float percent) {
+void Tachometer::update() {
+  if (this->percent >= 0.8) {
+    this->setDanger();
+  } else if (this->percent >= 0.6) {
+    this->setWarning();
+  } else {
+    this->setSafe();
+  }
+
   uint8_t pixelCount = pixels.numPixels();
-  float val = percent * pixelCount;
-  for (int i = 0; i < pixelCount; i++) {
-    pixels.setPixelColor(i, (val > 0) ? this->color : 0);
+  uint8_t lastActivePixel = floor(percent * pixelCount);
+  for (uint8_t i = 0; i < pixelCount; i++) {
+    if (i < lastActivePixel) {
+      pixels.setPixelColor(i, this->color);
+    } else {
+      pixels.setPixelColor(i, 0);
+    }
   }
   pixels.show();
 }
