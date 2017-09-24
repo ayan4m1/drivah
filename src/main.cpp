@@ -1,23 +1,36 @@
 #include <Arduino.h>
 #include <Gyroscope.h>
-#include <Display.h>
-#include <Tachometer.h>
-#include <GearDisplay.h>
+//#include <Display.h>
+//#include <Tachometer.h>
 
 VectorInt16 *offsetG = new VectorInt16(70, -65, 40);
 VectorInt16 *offsetA = new VectorInt16(-2600, -3400, 1630);
 
-#ifdef SIMULATOR
-  #define SHIFT_MS 120
-  #define COAST_MS 20000
-  #define GEAR_COUNT 4
+#if SIMULATOR
+  float gearRatios[] = { 2.847, 1.552, 1.0, 0.7 };
 
-  #define TESLA_ACCEL  38.3
-  #define SPORTS_ACCEL 31.5
-  #define LUXURY_ACCEL 13
+  #define YARIS_GEARS           4
+  #define YARIS_TORQUE_NM       138.3
+  #define YARIS_SHIFT_MS        350
+  #define YARIS_CDA             0.57
+  #define YARIS_MASS_KG         1043
+  #define YARIS_ACCEL_MS_SQ     2.63
+  #define YARIS_DRAG_AT_100MPH  202.34
+  #define YARIS_WHEEL_RADIUS_M  1.969
+  #define YARIS_DIFF_RATIO      4.237
+  #define YARIS_SHIFT_RPM       3500
+  #define YARIS_REDLINE_RPM     7000
+  #define YARIS_AVG_L           2.27
+  #define YARIS_DIFF_EFF        0.8
+  #define AIR_DENSITY           1.225
 
-  #define YARIS_CD    0.29
-  #define YARIS_ACCEL 8.48
+  struct SimulatorState {
+    uint8_t velocity;
+    uint8_t gear;
+    float throttle;
+    float brake;
+  };
+
 #endif
 
 Tachometer *tacho;
@@ -25,20 +38,13 @@ GearDisplay *gear;
 Display *lcd;
 Gyroscope *gyro;
 
-float rpm = 0.0;
-float currentAccel = 0.0;
-uint8_t currentSpeed = 0;
-uint8_t currentGear = 1;
-uint32_t shiftMs = 0;
-uint32_t accelStart = 0;
-uint32_t coastStart = 0;
-uint32_t loopDelta = 0;
-uint32_t totalTravel = 0;
+#if SIMULATOR
+SimulatorState *sim;
+#endif
 
 void setup() {
 #ifdef DEBUG
   Serial.begin(115200);
-  Serial.println(F("Gyro init started"));
 #endif
 
   tacho = new Tachometer();
@@ -46,77 +52,91 @@ void setup() {
   gyro = new Gyroscope(offsetG, offsetA);
   lcd = new Display();
 
-  tacho->init();
-  gear->init();
+#if SIMULATOR
+  sim = new SimulatorState();
+#endif
 }
 
-void loop() {
-  uint32_t started = micros();
+#if SIMULATOR
 
-  if (gyro->update()) {
-    return;
+void tickSimulator() {
+  uint32_t tickStart = millis();
+
+  if ((sim->throttle * YARIS_REDLINE_RPM) > YARIS_SHIFT_RPM && sim->gear < YARIS_GEARS) {
+    delay(YARIS_SHIFT_MS);
+    sim->gear++;
+    sim->throttle = 0.3;
+  } else if (sim->throttle >= 0.8) {
+    Serial.println(F("Coast"));
+    sim->throttle -= 0.3;
+  } else {
+    Serial.println(F("Accel"));
+    sim->throttle = max((random(5, 10) / 100.0f) + sim->throttle, 1.0);
   }
 
-  #ifdef SIMULATOR
-    if (rpm > 0.8 && currentGear < GEAR_COUNT) {
-      shiftMs = millis() - shiftMs;
-      Serial.write("Upshift lag\n");
-      if (shiftMs > SHIFT_MS) {
-        Serial.write("Shifted up\n");
-        shiftMs = 0;
-        rpm = 0.3;
-        currentGear++;
-      }
+  float accelStart = millis() - tickStart;
+
+  if (sim->throttle > 0.2) {
+    Serial.println(F("Applying torque"));
+    float currentTorque = sim->throttle * YARIS_TORQUE_NM;
+    float currentGearRatio = gearRatios[sim->gear - 1];
+    float force = (currentTorque * currentGearRatio * YARIS_DIFF_RATIO * YARIS_DIFF_EFF) / YARIS_WHEEL_RADIUS_M;
+    Serial.println(force);
+    sim->velocity += (force / YARIS_MASS_KG) * accelStart;
+  } else {
+    Serial.println(F("Coasting"));
+    float coastDrag = (sim->velocity / 100.0) * YARIS_DRAG_AT_100MPH;
+    Serial.println(coastDrag);
+    float dragForce = 0.5 * AIR_DENSITY * sim->velocity * YARIS_CDA;
+    Serial.println(dragForce);
+    sim->velocity -= (dragForce / YARIS_MASS_KG) * accelStart;
+
+    bool downShifted = false;
+    if (sim->gear == 4 && (sim->velocity / FPS_TO_MPH) < 50) {
+      downShifted = true;
+    } else if (sim->gear == 3 && (sim->velocity / FPS_TO_MPH) < 30) {
+      downShifted = true;
+    } else if (sim->gear == 2 && (sim->velocity / FPS_TO_MPH) < 10) {
+      downShifted = true;
     }
 
-    if (rpm < 0.95) {
-      rpm = max((random(10, 25) / 100.0f) + rpm, 1.0);
-      Serial.write("Accel\n");
-      accelStart = millis() - accelStart;
-      if (rpm > 0.2) {
-        // ft/s^2 based on engine load (linear, simplistic)
-        currentAccel = YARIS_ACCEL * rpm;
-        // ft/s
-        currentSpeed = currentAccel * (loopDelta / 1000.0f);
-        // ft
-        totalTravel += currentSpeed * (loopDelta / 1000.0f);
-      }
-    } else {
-      // coast for 20 seconds
-      Serial.write("Coasting\n");
-      coastStart = millis() - coastStart;
-      if (coastStart > COAST_MS) {
-        coastStart = 0;
-        rpm = 0.3;
-      }
+    if (downShifted) {
+      delay(YARIS_SHIFT_MS);
+      sim->gear--;
+      Serial.print(F("Downshift to "));
+      Serial.println(sim->gear);
     }
+  }
+}
 
-    if ((currentSpeed / FPS_TO_MPH) < 5) {
-      currentGear = 1;
-      Serial.write("Downshift to 1\n");
-    } else if ((currentSpeed / FPS_TO_MPH) < 30) {
-      currentGear = 2;
-      Serial.write("Downshift to 2\n");
-    } else if ((currentSpeed / FPS_TO_MPH) < 50) {
-      currentGear = 3;
-      Serial.write("Downshift to 3\n");
-    }
-  #endif
+#endif
 
-    if (rpm > 0.8) {
-      tacho->setWarning();
-    } else if (rpm >= 0.9) {
-      tacho->setDanger();
-    } else {
-      tacho->setSafe();
-    }
+void loop() {
 
-    tacho->update(rpm);
-    gear->update(currentGear);
+  uint32_t started = micros();
 
-  #ifdef SIMULATOR
-    loopDelta = millis();
-  #endif
+#if SIMULATOR
+    tickSimulator();
+    Serial.print("Speed: ");
+    Serial.print(sim->velocity);
+    Serial.print(" || Gear: ");
+    Serial.print(sim->gear);
+    Serial.print(" || RPM: ");
+    Serial.print(sim->throttle * YARIS_REDLINE_RPM);
+    Serial.print("\n");
+#endif
+
+  uint8_t priorGear = sim->gear;
+  if (priorGear != sim->gear) {
+    gear->gear = sim->gear;
+  }
+
+  gear->update();
+  tacho->update();
+
+  if (gyro->update()) {
+    delay(50);
+  }
 
   lcd->state->rot = gyro->rotation;
   lcd->state->accel = gyro->linAcc;
