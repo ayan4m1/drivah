@@ -43,4 +43,4 @@ private:
 
 #define BRIGHTNESS_OFF 0
 #define BRIGHTNESS_LOW 20
-#define BRIGHTNESS_HIGH 200
+#define BRIGHTNESS_HIGH 150
