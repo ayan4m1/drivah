@@ -1,8 +1,8 @@
-#include <math.h>
 #include <Adafruit_NeoPixel.h>
+#include <math.h>
 
 #ifdef __AVR__
-  #include <avr/power.h>
+#include <avr/power.h>
 #endif
 
 #define RING_PIN 52
@@ -13,14 +13,15 @@
 #define FPS_TO_MPH 0.681818
 
 class Tachometer {
-private:
+ private:
   Adafruit_NeoPixel pixels;
   uint32_t color;
 
   void setWarning();
   void setDanger();
   void setSafe();
-public:
+
+ public:
   float percent;
 
   Tachometer();
